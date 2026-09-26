@@ -6,6 +6,7 @@ import com.cinema.ebook.model.enums.Genre;
 import com.cinema.ebook.model.enums.MovieStatus;
 import com.cinema.ebook.dto.MovieDTO;
 import com.cinema.ebook.exception.InvalidFilterException;
+import com.cinema.ebook.exception.ResourceNotFoundException;
 import com.cinema.ebook.repository.MovieRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -260,6 +261,42 @@ class MovieServiceTest {
         assertEquals("CURRENTLY_RUNNING", filters.get("status"));
     }
 
+    @Test
+    @DisplayName("Should filter running movies by the day of week of a show date")
+    void testFilterByShowDate() {
+        // 2026-09-26 is a Saturday
+        when(movieRepository.findByStatusAndShowDaysIn("CURRENTLY_RUNNING", Set.of("SATURDAY")))
+                .thenReturn(Collections.singletonList(testMovie));
+
+        Map<String, Object> result = movieService.filterByShowDates(List.of("2026-09-26"), null);
+
+        assertEquals(1, result.get("total"));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> filters = (Map<String, Object>) result.get("appliedFilters");
+        assertEquals(List.of("2026-09-26"), filters.get("showDate"));
+        assertEquals("CURRENTLY_RUNNING", filters.get("status"));
+    }
+
+    @Test
+    @DisplayName("Should combine several show dates and a normalized genre")
+    void testFilterByShowDatesAndGenre() {
+        // Weekend: Saturday 2026-09-26 and Sunday 2026-09-27
+        when(movieRepository.findByStatusAndShowDaysInAndGenreContaining(
+                "CURRENTLY_RUNNING", Set.of("SATURDAY", "SUNDAY"), "Sci-Fi"))
+                .thenReturn(Arrays.asList(testMovie, testMovie2));
+
+        Map<String, Object> result = movieService.filterByShowDates(List.of("2026-09-26", "2026-09-27"), "sci-fi");
+
+        assertEquals(2, result.get("total"));
+    }
+
+    @Test
+    @DisplayName("Should reject a malformed show date")
+    void testFilterByInvalidShowDate() {
+        assertThrows(InvalidFilterException.class,
+                () -> movieService.filterByShowDates(List.of("tomorrow"), null));
+    }
+
     // ==================== UTILITY TESTS ====================
 
     @Test
@@ -289,6 +326,35 @@ class MovieServiceTest {
         assertNotNull(result);
         assertEquals("Dune: Part Two", result.getTitle());
         verify(movieRepository, times(1)).findById("507f1f77bcf86cd799439011");
+    }
+
+    @Test
+    @DisplayName("Should get movie details DTO by ID")
+    void testGetMovieDetails() {
+        when(movieRepository.findById("507f1f77bcf86cd799439011")).thenReturn(Optional.of(testMovie));
+
+        MovieDTO result = movieService.getMovieDetails("507f1f77bcf86cd799439011");
+
+        assertEquals("Dune: Part Two", result.getTitle());
+        assertEquals("https://youtube.com/embed/test", result.getTrailerUrl());
+    }
+
+    @Test
+    @DisplayName("Should throw ResourceNotFoundException for missing movie details")
+    void testGetMovieDetailsNotFound() {
+        when(movieRepository.findById("nonexistent")).thenReturn(Optional.empty());
+
+        assertThrows(ResourceNotFoundException.class, () -> movieService.getMovieDetails("nonexistent"));
+    }
+
+    @Test
+    @DisplayName("Should query the database with the canonical rating value")
+    void testRatingFilterNormalized() {
+        when(movieRepository.findByRating("PG-13")).thenReturn(Collections.singletonList(testMovie));
+
+        Map<String, Object> result = movieService.filterByRating("pg-13");
+
+        assertEquals(1, result.get("total"));
     }
 
     @Test

@@ -98,6 +98,12 @@ public class MovieDTO {
     private List<String> availableShowtimes;
 
     /**
+     * Days of the week this movie is shown
+     * Format: ["MONDAY", "SATURDAY", ...]
+     */
+    private List<String> showDays;
+
+    /**
      * Total available seats across all showtimes
      * Used to indicate availability on home page
      */

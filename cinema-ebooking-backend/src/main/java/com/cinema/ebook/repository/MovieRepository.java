@@ -5,6 +5,7 @@ import org.springframework.data.mongodb.repository.MongoRepository;
 import org.springframework.data.mongodb.repository.Query;
 import org.springframework.stereotype.Repository;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -82,6 +83,36 @@ public interface MovieRepository extends MongoRepository<Movie, String> {
      * @return number of movies with this genre
      */
     long countByGenreContaining(String genre);
+
+    // ==================== SHOW DATE QUERIES ====================
+
+    /**
+     * Find movies with a given status shown on any of the given days of the week
+     *
+     * @param status CURRENTLY_RUNNING or COMING_SOON
+     * @param showDays day-of-week names, e.g. ["SATURDAY", "SUNDAY"]
+     * @return List of movies playing on at least one of those days
+     */
+    List<Movie> findByStatusAndShowDaysIn(String status, Collection<String> showDays);
+
+    /**
+     * Same as findByStatusAndShowDaysIn, narrowed to a genre
+     *
+     * @param status CURRENTLY_RUNNING or COMING_SOON
+     * @param showDays day-of-week names
+     * @param genre the genre to filter by
+     * @return List of movies matching all criteria
+     */
+    List<Movie> findByStatusAndShowDaysInAndGenreContaining(String status, Collection<String> showDays, String genre);
+
+    /**
+     * Check whether any movie with the given status is missing a show-day schedule
+     * Used by DataSeeder to upgrade databases seeded before show days existed
+     *
+     * @param status the status to check
+     * @return true if at least one such movie has no showDays field
+     */
+    boolean existsByStatusAndShowDaysIsNull(String status);
 
     // ==================== RATING QUERIES ====================
 

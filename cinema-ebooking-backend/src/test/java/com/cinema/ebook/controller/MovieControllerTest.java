@@ -2,6 +2,9 @@ package com.cinema.ebook.controller;
 
 import com.cinema.ebook.dto.MovieDTO;
 import com.cinema.ebook.dto.response.ApiResponse;
+import com.cinema.ebook.exception.GlobalExceptionHandler;
+import com.cinema.ebook.exception.InvalidFilterException;
+import com.cinema.ebook.exception.ResourceNotFoundException;
 import com.cinema.ebook.service.MovieService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -234,7 +237,7 @@ class MovieControllerTest {
         when(movieService.filterByGenre("Sci-Fi")).thenReturn(filterResult);
 
         // Act
-        ResponseEntity<ApiResponse<List<MovieDTO>>> response = movieController.filterMovies("Sci-Fi", null, null);
+        ResponseEntity<ApiResponse<List<MovieDTO>>> response = movieController.filterMovies("Sci-Fi", null, null, null);
 
         // Assert
         assertEquals(HttpStatus.OK, response.getStatusCode());
@@ -260,7 +263,7 @@ class MovieControllerTest {
         when(movieService.filterByGenreAndStatus("Sci-Fi", "CURRENTLY_RUNNING")).thenReturn(filterResult);
 
         // Act
-        ResponseEntity<ApiResponse<List<MovieDTO>>> response = movieController.filterMovies("Sci-Fi", null, "CURRENTLY_RUNNING");
+        ResponseEntity<ApiResponse<List<MovieDTO>>> response = movieController.filterMovies("Sci-Fi", null, "CURRENTLY_RUNNING", null);
 
         // Assert
         assertEquals(HttpStatus.OK, response.getStatusCode());
@@ -285,7 +288,7 @@ class MovieControllerTest {
         when(movieService.filterByAllCriteria("Sci-Fi", "PG-13", "CURRENTLY_RUNNING")).thenReturn(filterResult);
 
         // Act
-        ResponseEntity<ApiResponse<List<MovieDTO>>> response = movieController.filterMovies("Sci-Fi", "PG-13", "CURRENTLY_RUNNING");
+        ResponseEntity<ApiResponse<List<MovieDTO>>> response = movieController.filterMovies("Sci-Fi", "PG-13", "CURRENTLY_RUNNING", null);
 
         // Assert
         assertEquals(HttpStatus.OK, response.getStatusCode());
@@ -311,7 +314,7 @@ class MovieControllerTest {
         when(movieService.filterByGenre("Action")).thenReturn(filterResult);
 
         // Act
-        ResponseEntity<ApiResponse<List<MovieDTO>>> response = movieController.filterMovies("Action", null, null);
+        ResponseEntity<ApiResponse<List<MovieDTO>>> response = movieController.filterMovies("Action", null, null, null);
 
         // Assert
         assertEquals(HttpStatus.OK, response.getStatusCode());
@@ -458,11 +461,101 @@ class MovieControllerTest {
         when(movieService.filterByGenre(any())).thenThrow(new RuntimeException("Filter error"));
 
         // Act
-        ResponseEntity<ApiResponse<List<MovieDTO>>> response = movieController.filterMovies("Action", null, null);
+        ResponseEntity<ApiResponse<List<MovieDTO>>> response = movieController.filterMovies("Action", null, null, null);
+
+        // Assert
+        assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getStatusCode());
+        assertFalse(response.getBody().getSuccess());
+    }
+
+    @Test
+    @DisplayName("Should return 400 for an invalid filter value")
+    void testFilterMoviesInvalidFilter() {
+        // Arrange
+        when(movieService.filterByGenre("NotAGenre"))
+                .thenThrow(InvalidFilterException.forField("genre", "NotAGenre", "Action, Comedy"));
+
+        // Act
+        ResponseEntity<ApiResponse<List<MovieDTO>>> response = movieController.filterMovies("NotAGenre", null, null, null);
 
         // Assert
         assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
         assertFalse(response.getBody().getSuccess());
+        assertEquals("INVALID_FILTER", response.getBody().getError());
+    }
+
+    @Test
+    @DisplayName("Should filter by show date when showDate is provided")
+    void testFilterByShowDate() {
+        // Arrange
+        List<String> dates = Arrays.asList("2026-09-26", "2026-09-27");
+        Map<String, Object> filterResult = new HashMap<>();
+        filterResult.put("movies", Collections.singletonList(testMovieDTO));
+        filterResult.put("total", 1);
+        Map<String, Object> appliedFilters = new HashMap<>();
+        appliedFilters.put("showDate", dates);
+        filterResult.put("appliedFilters", appliedFilters);
+
+        when(movieService.filterByShowDates(dates, "Action")).thenReturn(filterResult);
+
+        // Act
+        ResponseEntity<ApiResponse<List<MovieDTO>>> response = movieController.filterMovies("Action", null, null, dates);
+
+        // Assert
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals(1, response.getBody().getData().size());
+        assertEquals(dates, response.getBody().getAppliedFilters().get("showDate"));
+        verify(movieService, never()).filterByGenre(any());
+    }
+
+    @Test
+    @DisplayName("Should bind repeated showDate query parameters over HTTP")
+    void testFilterByShowDateHttp() throws Exception {
+        // Arrange
+        Map<String, Object> filterResult = new HashMap<>();
+        filterResult.put("movies", Collections.singletonList(testMovieDTO));
+        filterResult.put("total", 1);
+        filterResult.put("appliedFilters", new HashMap<>());
+        when(movieService.filterByShowDates(Arrays.asList("2026-09-26", "2026-09-27"), null)).thenReturn(filterResult);
+
+        // Act + Assert
+        mockMvc.perform(get("/api/v1/movies/filter").param("showDate", "2026-09-26", "2026-09-27"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.total").value(1));
+    }
+
+    // ==================== GET BY ID TESTS ====================
+
+    @Test
+    @DisplayName("Should return a single movie by ID")
+    void testGetMovieById() {
+        // Arrange
+        when(movieService.getMovieDetails("507f1f77bcf86cd799439011")).thenReturn(testMovieDTO);
+
+        // Act
+        ResponseEntity<ApiResponse<MovieDTO>> response = movieController.getMovieById("507f1f77bcf86cd799439011");
+
+        // Assert
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertTrue(response.getBody().getSuccess());
+        assertEquals("Dune: Part Two", response.getBody().getData().getTitle());
+    }
+
+    @Test
+    @DisplayName("Should return 404 over HTTP when movie ID does not exist")
+    void testGetMovieByIdNotFound() throws Exception {
+        // Arrange
+        MockMvc mvc = MockMvcBuilders.standaloneSetup(movieController)
+                .setControllerAdvice(new GlobalExceptionHandler())
+                .build();
+        when(movieService.getMovieDetails("missing"))
+                .thenThrow(ResourceNotFoundException.forResource("Movie", "missing"));
+
+        // Act + Assert
+        mvc.perform(get("/api/v1/movies/missing"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.error").value("RESOURCE_NOT_FOUND"));
     }
 
     @Test
@@ -524,7 +617,7 @@ class MovieControllerTest {
         when(movieService.filterByGenre("Action")).thenReturn(filterResult);
 
         // Act
-        ResponseEntity<ApiResponse<List<MovieDTO>>> response = movieController.filterMovies("Action", null, null);
+        ResponseEntity<ApiResponse<List<MovieDTO>>> response = movieController.filterMovies("Action", null, null, null);
 
         // Assert
         assertEquals(HttpStatus.OK, response.getStatusCode());

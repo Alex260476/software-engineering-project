@@ -1,0 +1,11 @@
+{
+  "name": "cinema-ebooking-system",
+  "private": true,
+  "description": "Runs MongoDB, the Spring Boot backend, and the React frontend with one command",
+  "scripts": {
+    "start": "node scripts/start.mjs"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

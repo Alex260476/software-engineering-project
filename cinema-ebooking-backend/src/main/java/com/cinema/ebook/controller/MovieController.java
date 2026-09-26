@@ -13,6 +13,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -88,6 +89,11 @@ public class MovieController {
             ApiResponse<List<MovieDTO>> response = ApiResponse.success(movies, message, movies.size());
             return ResponseEntity.ok(response);
 
+        } catch (com.cinema.ebook.exception.InvalidFilterException e) {
+            log.warn("Invalid status provided: {}", e.getMessage());
+            ApiResponse<List<MovieDTO>> errorResponse = ApiResponse.error(e.getMessage(), "INVALID_FILTER");
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponse);
+
         } catch (Exception e) {
             log.error("Error fetching movies", e);
             ApiResponse<List<MovieDTO>> errorResponse = ApiResponse.error(
@@ -145,19 +151,22 @@ public class MovieController {
     }
 
     /**
-     * Filter movies by genre, rating, and/or status
+     * Filter movies by genre, rating, status, and/or show date
      *
      * Supports single or multi-criteria filtering.
+     * When showDate is given, returns currently running movies shown on those dates
+     * (optionally narrowed by genre); rating and status are ignored in that case.
      * Response includes appliedFilters showing which filters were used.
      *
      * @param genre optional genre filter
      * @param rating optional age rating filter
      * @param status optional status filter
+     * @param showDate optional show date(s) in YYYY-MM-DD format; repeat the parameter for several dates
      * @return ResponseEntity with ApiResponse containing filtered movies
      */
     @GetMapping("/filter")
     @Operation(summary = "Filter movies",
-            description = "Filter by genre, age rating, and/or status (supports multi-filter)")
+            description = "Filter by genre, age rating, status, and/or show date (supports multi-filter)")
     public ResponseEntity<ApiResponse<List<MovieDTO>>> filterMovies(
             @Parameter(description = "Genre filter (Action, Comedy, Drama, Horror, Romance, Sci-Fi, Thriller)", required = false)
             @RequestParam(required = false) String genre,
@@ -166,15 +175,20 @@ public class MovieController {
             @RequestParam(required = false) String rating,
 
             @Parameter(description = "Status filter (CURRENTLY_RUNNING, COMING_SOON)", required = false)
-            @RequestParam(required = false) String status) {
+            @RequestParam(required = false) String status,
+
+            @Parameter(description = "Show date(s) in YYYY-MM-DD format, e.g. showDate=2026-09-26&showDate=2026-09-27", required = false)
+            @RequestParam(required = false) List<String> showDate) {
 
         try {
-            log.info("GET /movies/filter - genre: {}, rating: {}, status: {}", genre, rating, status);
+            log.info("GET /movies/filter - genre: {}, rating: {}, status: {}, showDate: {}", genre, rating, status, showDate);
 
             Map<String, Object> filterResult;
 
             // Determine which filter method to call based on provided parameters
-            if (genre != null && rating != null && status != null) {
+            if (showDate != null && !showDate.isEmpty()) {
+                filterResult = movieService.filterByShowDates(showDate, genre);
+            } else if (genre != null && rating != null && status != null) {
                 filterResult = movieService.filterByAllCriteria(genre, rating, status);
             } else if (genre != null && rating != null) {
                 filterResult = movieService.filterByGenreAndRating(genre, rating);
@@ -227,6 +241,27 @@ public class MovieController {
             );
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
         }
+    }
+
+    /**
+     * Get a single movie by ID
+     *
+     * Used by the Movie Details and Booking pages.
+     * A missing movie throws ResourceNotFoundException, which GlobalExceptionHandler maps to 404.
+     *
+     * @param id the movie ID
+     * @return ResponseEntity with ApiResponse containing the MovieDTO
+     */
+    @GetMapping("/{id}")
+    @Operation(summary = "Get movie by ID",
+            description = "Returns full details for a single movie")
+    public ResponseEntity<ApiResponse<MovieDTO>> getMovieById(
+            @Parameter(description = "Movie ID", required = true)
+            @PathVariable String id) {
+
+        log.info("GET /movies/{}", id);
+        MovieDTO movie = movieService.getMovieDetails(id);
+        return ResponseEntity.ok(ApiResponse.success(movie, "Retrieved movie: " + movie.getTitle()));
     }
 
     /**

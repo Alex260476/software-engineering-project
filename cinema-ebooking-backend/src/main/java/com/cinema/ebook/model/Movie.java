@@ -1,13 +1,13 @@
 package com.cinema.ebook.model;
 
-import com.cinema.ebook.model.enums.AgeRating;
-import com.cinema.ebook.model.enums.Genre;
 import com.cinema.ebook.model.enums.MovieStatus;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.Id;
+import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.annotation.Transient;
 import org.springframework.data.mongodb.core.mapping.Document;
 
@@ -105,6 +105,12 @@ public class Movie {
     private List<String> availableShowtimes;
 
     /**
+     * Days of the week this movie is shown (java.time.DayOfWeek names, e.g. "SATURDAY")
+     * Used by the show-date filter; empty for COMING_SOON movies
+     */
+    private List<String> showDays;
+
+    /**
      * Available seat count across all showtimes
      * Used to indicate availability on home page
      */
@@ -112,27 +118,17 @@ public class Movie {
 
     /**
      * Timestamp when movie record was created
-     * Set automatically via @PrePersist
+     * Set automatically by Spring Data auditing (@EnableMongoAuditing)
      */
+    @CreatedDate
     private LocalDateTime createdAt;
 
     /**
      * Timestamp when movie record was last updated
-     * Set automatically via @PreUpdate
+     * Set automatically by Spring Data auditing (@EnableMongoAuditing)
      */
+    @LastModifiedDate
     private LocalDateTime updatedAt;
-
-    /**
-     * Pre-persist hook: set createdAt and updatedAt timestamps
-     * MongoDB doesn't automatically manage these, so we do it in code
-     */
-    @org.springframework.data.mongodb.core.mapping.event.PrePersist
-    public void prePersist() {
-        if (this.createdAt == null) {
-            this.createdAt = LocalDateTime.now();
-        }
-        this.updatedAt = LocalDateTime.now();
-    }
 
     /**
      * Checks if this movie has available showtimes

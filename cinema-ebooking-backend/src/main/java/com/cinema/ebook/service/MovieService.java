@@ -40,6 +40,15 @@ public interface MovieService {
     Movie getMovieById(String id);
 
     /**
+     * Get a single movie by ID as a DTO (used by the Movie Details page)
+     *
+     * @param id the movie ID
+     * @return the MovieDTO
+     * @throws com.cinema.ebook.exception.ResourceNotFoundException if no movie has this ID
+     */
+    MovieDTO getMovieDetails(String id);
+
+    /**
      * Get all available genres for the genre filter dropdown
      *
      * @return List of all genre names
@@ -121,6 +130,18 @@ public interface MovieService {
      * @return Map with movies, total, appliedFilters
      */
     Map<String, Object> filterByAllCriteria(String genre, String rating, String status);
+
+    /**
+     * Filter currently running movies by show date, optionally narrowed to a genre
+     *
+     * A movie matches if it is shown on the day of the week of any of the given dates.
+     *
+     * @param showDates one or more dates in YYYY-MM-DD format (e.g. both days of a weekend)
+     * @param genre optional genre filter (may be null)
+     * @return Map with movies, total, appliedFilters
+     * @throws com.cinema.ebook.exception.InvalidFilterException if a date or the genre is invalid
+     */
+    Map<String, Object> filterByShowDates(List<String> showDates, String genre);
 
     // ==================== VALIDATION METHODS ====================
 

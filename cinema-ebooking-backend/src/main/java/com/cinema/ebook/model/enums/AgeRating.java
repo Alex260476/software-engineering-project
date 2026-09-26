@@ -46,7 +46,7 @@ public enum AgeRating {
         }
 
         for (AgeRating rating : AgeRating.values()) {
-            if (rating.value.equals(value)) {
+            if (rating.value.equalsIgnoreCase(value)) {
                 return rating;
             }
         }

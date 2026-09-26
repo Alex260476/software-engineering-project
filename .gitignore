@@ -64,3 +64,10 @@ yarn-error.log
 # OS
 Thumbs.db
 *.tmp
+
+# Local runtime files created by npm start
+.logs/
+.data/
+
+# Claude Code local settings
+.claude/
