@@ -86,7 +86,7 @@ public class DataSeeder {
                 .posterUrl("https://via.placeholder.com/300x450?text=Dune+Part+Two")
                 .trailerUrl("https://www.youtube.com/embed/n9xhJsagTKQ")
                 .director("Denis Villeneuve")
-                .cast(Arrays.asList("TimothÃ©e Chalamet", "Zendaya", "Rebecca Ferguson", "Austin Butler"))
+                .cast(Arrays.asList("TimothÃƒÂ©e Chalamet", "Zendaya", "Rebecca Ferguson", "Austin Butler"))
                 .imdbRating(8.5)
                 .status("CURRENTLY_RUNNING")
                 .build());

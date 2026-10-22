@@ -16,7 +16,7 @@ import java.util.Optional;
  *
  *
  * @author Team 3 Backend
- * @version 2.0 (Updated for feedback)
+ * @version 2.0
  */
 @Repository
 public interface MovieRepository extends MongoRepository<Movie, String> {
