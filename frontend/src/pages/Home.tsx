@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Search, Calendar, Filter, Clock, AlertTriangle, X } from 'lucide-react';
+import { Search, Calendar, Filter, Clock, AlertTriangle, X, Heart } from 'lucide-react';
 import { fetchGenres, fetchMovies, filterMovies, searchMovies } from '../services/api';
 import { Movie } from '../types';
+import { useAuth } from '../context/AuthContext';
 import {
   DATE_FILTER_LABELS,
   DateFilter,
@@ -26,6 +27,27 @@ const Home = () => {
   const [selectedGenre, setSelectedGenre] = useState(ALL);
   const [dateFilter, setDateFilter] = useState<DateFilter>('any');
   const [reloadKey, setReloadKey] = useState(0);
+
+  const { isFavorite, toggleFavorite, isAuthenticated } = useAuth();
+  const [favToast, setFavToast] = useState<string | null>(null);
+
+  const handleFavoriteClick = async (e: React.MouseEvent, movieId: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!isAuthenticated) {
+      setFavToast('Please sign in to save movies to your favorites.');
+      setTimeout(() => setFavToast(null), 3000);
+      return;
+    }
+    try {
+      const isNowFav = await toggleFavorite(movieId);
+      setFavToast(isNowFav ? 'Added to favorites!' : 'Removed from favorites.');
+      setTimeout(() => setFavToast(null), 2500);
+    } catch (err: any) {
+      setFavToast(err?.message || 'Failed to update favorite.');
+      setTimeout(() => setFavToast(null), 2500);
+    }
+  };
 
   // Genre options come from the backend so they always match what the filter endpoint accepts
   useEffect(() => {
@@ -117,9 +139,31 @@ const Home = () => {
       ? selectedDates.find(d => isShownOn(movie, d))
       : upcomingShowDates(movie)[0];
 
-  const renderMovieCard = (movie: Movie) => (
-    <div key={movie.id} className="group rounded-xl overflow-hidden glass hover:ring-2 hover:ring-primary transition-all duration-300 flex flex-col">
-      <Link to={`/movie/${movie.id}${dateFilter !== 'any' && cardShowDate(movie) ? `?date=${cardShowDate(movie)}` : ''}`} className="relative block">
+  const renderMovieCard = (movie: Movie) => {
+    const isFav = isFavorite(movie.id);
+    return (
+      <div key={movie.id} className="group rounded-xl overflow-hidden glass hover:ring-2 hover:ring-primary transition-all duration-300 flex flex-col relative">
+        {/* Heart Favorite Button with Tooltip (TC8 Requirement) */}
+        <div className="absolute top-2 right-2 z-20">
+          <div className="relative group/tooltip">
+            <button
+              onClick={(e) => handleFavoriteClick(e, movie.id)}
+              aria-label={isFav ? "Remove from favorites" : "Add to favorites"}
+              className="p-2 rounded-full bg-black/70 hover:bg-black/90 backdrop-blur-md text-white transition-all transform hover:scale-110 active:scale-95 border border-white/10 shadow-lg"
+            >
+              <Heart
+                className={`w-4 h-4 transition-colors ${
+                  isFav ? 'fill-red-500 text-red-500' : 'text-white/80 hover:text-red-400'
+                }`}
+              />
+            </button>
+            <div className="absolute right-0 top-full mt-1.5 hidden group-hover/tooltip:block z-30 px-2 py-1 bg-black/90 border border-white/20 rounded-md text-[11px] text-white whitespace-nowrap shadow-xl pointer-events-none">
+              {isFav ? 'Remove from favorites' : 'Add to favorites'}
+            </div>
+          </div>
+        </div>
+
+        <Link to={`/movie/${movie.id}${dateFilter !== 'any' && cardShowDate(movie) ? `?date=${cardShowDate(movie)}` : ''}`} className="relative block">
         <div className="aspect-[2/3] w-full overflow-hidden bg-surface">
           <img
             src={movie.posterUrl}
@@ -171,6 +215,7 @@ const Home = () => {
       </div>
     </div>
   );
+};
 
   const renderMovieGrid = (movieList: Movie[], title: string, emptyText: string, id: string) => (
     <section id={id} className="mb-16 scroll-mt-24">
@@ -330,6 +375,13 @@ const Home = () => {
         </div>
 
         {renderResults()}
+
+        {favToast && (
+          <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 py-2.5 px-5 bg-surface border border-white/20 text-white rounded-full shadow-2xl text-xs font-semibold flex items-center gap-2 animate-bounce">
+            <Heart className="w-4 h-4 text-red-500 fill-red-500" />
+            <span>{favToast}</span>
+          </div>
+        )}
 
       </div>
     </div>

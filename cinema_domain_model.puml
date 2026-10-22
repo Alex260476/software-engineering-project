@@ -1,0 +1,147 @@
+@startuml
+skinparam classAttributeIconSize 0
+skinparam monochrome false
+skinparam roundcorner 10
+skinparam class {
+    BackgroundColor White
+    ArrowColor Black
+    BorderColor Black
+}
+
+title Cinema E-Booking System - Domain Class Diagram
+
+enum CustomerState {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+}
+
+enum TicketType {
+  ADULT
+  SENIOR
+  CHILD
+}
+
+abstract class User {
+  - userId: String
+  - passwordHash: String
+  + login(): boolean
+  + resetPassword(): void
+}
+
+class Admin {
+  - name: String
+  - email: String
+  + addMovie(m: Movie): void
+  + scheduleShow(s: Show): void
+  + managePromotions(): void
+}
+
+class Customer {
+  - firstName: String
+  - lastName: String
+  - email: String
+  - state: CustomerState
+  + updateProfile(): void
+  + getRecommendations(): List<Movie>
+  + addFavorite(m: Movie): void
+}
+
+class Address {
+  - street: String
+  - city: String
+  - state: String
+  - zipCode: String
+}
+
+class PaymentCard {
+  - cardNumber: String
+  - expirationDate: Date
+  + processPayment(amount: double): boolean
+}
+
+class Movie {
+  - movieId: String
+  - title: String
+  - director: String
+  - rating: String
+  - durationMins: int
+  + getDetails(): Movie
+}
+
+class CinemaTheatre {
+  - name: String
+  + getShowrooms(): List<Showroom>
+}
+
+class Showroom {
+  - roomId: String
+  - name: String
+  - numberOfSeats: int
+}
+
+class Seat {
+  - seatId: String
+  - rowNumber: String
+  - seatNumber: int
+}
+
+class Show {
+  - showId: String
+  - date: Date
+  - time: Time
+  - duration: int
+}
+
+class Booking {
+  - bookingId: String
+  - bookingDate: Date
+  - totalPrice: double
+  + calculateTotal(): double
+  + confirmBooking(): void
+  + applyPromotion(p: Promotion): void
+}
+
+class Ticket {
+  - ticketId: String
+  - type: TicketType
+  - price: double
+}
+
+class Promotion {
+  - promoCode: String
+  - discountPercentage: double
+  - startDate: Date
+  - endDate: Date
+  + isValid(): boolean
+}
+
+User <|-- Admin
+User <|-- Customer
+
+Customer "1" *-- "0..1" Address : has mailing >
+Customer "1" *-- "0..3" PaymentCard : owns >
+PaymentCard "1" *-- "1" Address : has billing >
+
+Customer "1" -- "0..*" Movie : favorites >
+(Customer, Movie) .. FavoriteMovie
+
+class FavoriteMovie {
+  - dateAdded: Date
+}
+
+CinemaTheatre "1" *-- "1..*" Showroom : contains >
+Showroom "1" *-- "1..*" Seat : contains >
+
+Movie "1" -- "0..*" Show : screened in <
+Showroom "1" -- "0..*" Show : hosts >
+
+Customer "1" -- "0..*" Booking : makes >
+
+Booking "0..*" -- "1" Show : for >
+Booking "1" *-- "1..*" Ticket : contains >
+Booking "0..*" -- "0..1" Promotion : applies >
+
+Ticket "0..1" -- "1" Seat : assigned to >
+
+@enduml

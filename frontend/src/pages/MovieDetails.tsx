@@ -3,7 +3,8 @@ import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { fetchMovieById } from '../services/api';
 import { Movie, STATUS_LABELS } from '../types';
 import { bookingPath, formatDate, formatRuntime, formatShowDate, upcomingShowDates } from '../utils/format';
-import { Calendar, Clock, Star, PlayCircle, Info, Ticket, ChevronLeft, Users, Clapperboard } from 'lucide-react';
+import { Calendar, Clock, Star, PlayCircle, Info, Ticket, ChevronLeft, Users, Clapperboard, Heart } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 
 const MovieDetails = () => {
   const { id } = useParams();
@@ -14,6 +15,7 @@ const MovieDetails = () => {
   const [error, setError] = useState<string | null>(null);
   const [selectedShowtime, setSelectedShowtime] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const { isFavorite, toggleFavorite } = useAuth();
 
   useEffect(() => {
     if (!id) return;
@@ -84,7 +86,21 @@ const MovieDetails = () => {
                 <span className="bg-primary/20 text-primary px-2 py-1 rounded text-xs font-bold border border-primary/30">{STATUS_LABELS[movie.status]}</span>
                 <span className="bg-white/10 text-white px-2 py-1 rounded text-xs font-medium border border-white/10">Rated {movie.rating}</span>
               </div>
-              <h1 className="text-4xl md:text-6xl font-bold text-white mb-4">{movie.title}</h1>
+              <div className="flex flex-wrap items-center gap-4 mb-4">
+                <h1 className="text-4xl md:text-6xl font-bold text-white">{movie.title}</h1>
+                <button
+                  onClick={() => toggleFavorite(movie.id)}
+                  title={isFavorite(movie.id) ? 'Remove from favorites' : 'Add to favorites'}
+                  className="px-4 py-2 rounded-full bg-white/10 hover:bg-white/20 border border-white/20 transition-all flex items-center gap-2 text-xs font-semibold text-white shadow-lg"
+                >
+                  <Heart
+                    className={`w-4 h-4 ${
+                      isFavorite(movie.id) ? 'fill-red-500 text-red-500' : 'text-white'
+                    }`}
+                  />
+                  <span>{isFavorite(movie.id) ? 'Favorited' : 'Add to Favorites'}</span>
+                </button>
+              </div>
               <div className="flex flex-wrap gap-x-5 gap-y-2 text-sm text-gray-300">
                 {runtime && <span className="flex items-center gap-1"><Clock className="w-4 h-4" /> {runtime}</span>}
                 {releaseDate && <span className="flex items-center gap-1"><Calendar className="w-4 h-4" /> {isNowPlaying ? 'Released' : 'Opens'} {releaseDate}</span>}

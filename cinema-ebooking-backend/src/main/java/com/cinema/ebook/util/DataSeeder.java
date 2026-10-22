@@ -1,7 +1,13 @@
 package com.cinema.ebook.util;
 
+import com.cinema.ebook.model.Address;
 import com.cinema.ebook.model.Movie;
+import com.cinema.ebook.model.PaymentCard;
+import com.cinema.ebook.model.User;
+import com.cinema.ebook.model.enums.UserStatus;
+import com.cinema.ebook.model.enums.UserType;
 import com.cinema.ebook.repository.MovieRepository;
+import com.cinema.ebook.repository.UserRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
@@ -17,91 +23,207 @@ import static java.time.DayOfWeek.TUESDAY;
 import static java.time.DayOfWeek.WEDNESDAY;
 
 import java.time.DayOfWeek;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.UUID;
+import java.util.stream.Collectors;
 
 /**
  * DataSeeder
  *
- * Automatically seeds the MongoDB database with sample movies when the application starts.
- * Only seeds data if the database is empty (no movies exist), unless app.seed.reset=true.
- *
- * Includes:
- * - 5 CURRENTLY_RUNNING movies (with hardcoded showtimes and a weekly show-day schedule)
- * - 8 COMING_SOON movies
- * - All genres represented
- * - Real, embeddable YouTube trailer URLs and poster images
- *
- * @author Team 3 Backend
- * @version 1.1
+ * Automatically seeds the MongoDB database with sample movies and Sprint 2 demo accounts
+ * when the application starts.
  */
 @Component
 @Slf4j
 public class DataSeeder {
 
-    /**
-     * Hardcoded showtimes for Sprint 1. Later sprints will derive these from showings.
-     */
     private static final List<String> DEFAULT_SHOWTIMES = Arrays.asList("2:00 PM", "5:00 PM", "8:00 PM");
-
-    /**
-     * Weekly schedules for currently running movies. They differ per movie so the
-     * show-date filter (Today / Tomorrow / This Weekend) returns different results.
-     */
     private static final List<DayOfWeek> EVERY_DAY = List.of(DayOfWeek.values());
-
-    /**
-     * Seats per showing in the prototype auditorium (7 rows x 10 seats) times three showings
-     */
     private static final int DEFAULT_AVAILABLE_SEATS = 70 * 3;
 
     private final MovieRepository movieRepository;
+    private final UserRepository userRepository;
+    private final PasswordHashingUtil passwordHashingUtil;
+    private final EncryptionUtil encryptionUtil;
 
     @Value("${app.seed.reset:false}")
     private boolean resetOnStartup;
 
-    /**
-     * Constructor with dependency injection
-     *
-     * @param movieRepository the movie repository
-     */
-    public DataSeeder(MovieRepository movieRepository) {
+    public DataSeeder(MovieRepository movieRepository,
+                      UserRepository userRepository,
+                      PasswordHashingUtil passwordHashingUtil,
+                      EncryptionUtil encryptionUtil) {
         this.movieRepository = movieRepository;
+        this.userRepository = userRepository;
+        this.passwordHashingUtil = passwordHashingUtil;
+        this.encryptionUtil = encryptionUtil;
     }
 
-    /**
-     * Seeds the database with sample movies on application startup
-     * Triggered by ApplicationReadyEvent (after application fully starts)
-     */
     @EventListener(ApplicationReadyEvent.class)
     public void seedDatabase() {
         log.info("Starting database seeding...");
 
         if (resetOnStartup) {
-            log.info("app.seed.reset=true - clearing existing movies");
+            log.info("app.seed.reset=true - clearing existing movies and users");
             movieRepository.deleteAll();
+            userRepository.deleteAll();
         } else if (movieRepository.existsByStatusAndShowDaysIsNull("CURRENTLY_RUNNING")) {
-            // Databases seeded before show-day schedules existed can't support the date filter
             log.info("Existing movies have no show-day schedule - re-seeding with the current sample data");
             movieRepository.deleteAll();
         }
 
-        // Check if database is already populated
+        // Check if movies exist
         long movieCount = movieRepository.count();
-
-        if (movieCount > 0) {
-            log.info("Database already contains {} movies. Skipping seeding.", movieCount);
-            return;
+        if (movieCount == 0) {
+            log.info("Database has no movies. Seeding sample movies...");
+            List<Movie> movies = createSampleMovies();
+            movieRepository.saveAll(movies);
+            log.info("Successfully seeded database with {} movies", movies.size());
+        } else {
+            log.info("Database already contains {} movies.", movieCount);
         }
 
-        log.info("Database is empty. Seeding with sample movies...");
+        // Seed Sprint 2 Demo Users
+        seedUsers();
+    }
 
-        List<Movie> movies = createSampleMovies();
-        movieRepository.saveAll(movies);
+    /**
+     * Seeds the required Sprint 2 demo accounts:
+     * 1. Admin account (admin@cinema.com / AdminPass!20)
+     * 2. Verified user with favorite movies (favuser@gmail.com / UserPass!20)
+     * 3. Verified user with 3 payment cards (cardsuser@gmail.com / UserPass!20)
+     */
+    public void seedUsers() {
+        log.info("Checking/seeding Sprint 2 demo accounts...");
 
-        log.info("Successfully seeded database with {} movies", movies.size());
+        // 1. Admin Account
+        if (userRepository.findByEmail("admin@cinema.com").isEmpty()) {
+            User admin = User.builder()
+                    .firstName("System")
+                    .lastName("Admin")
+                    .email("admin@cinema.com")
+                    .passwordHash(passwordHashingUtil.hashPassword("AdminPass!20"))
+                    .userType(UserType.ADMIN)
+                    .status(UserStatus.ACTIVE)
+                    .emailVerified(true)
+                    .promotionSubscription(true)
+                    .createdAt(LocalDateTime.now())
+                    .updatedAt(LocalDateTime.now())
+                    .build();
+            userRepository.save(admin);
+            log.info("Seeded Admin account: admin@cinema.com / AdminPass!20");
+        }
+
+        // Fetch movies for favorites
+        List<Movie> allMovies = movieRepository.findAll();
+        List<String> favMovieIds = allMovies.stream()
+                .limit(2)
+                .map(Movie::getId)
+                .collect(Collectors.toList());
+
+        // 2. Verified user with at least one favorite movie
+        if (userRepository.findByEmail("favuser@gmail.com").isEmpty()) {
+            Address address = Address.builder()
+                    .street("123 Peach Street")
+                    .city("Atlanta")
+                    .state("GA")
+                    .zipCode("30303")
+                    .build();
+
+            PaymentCard card = PaymentCard.builder()
+                    .id(UUID.randomUUID().toString())
+                    .cardholderName("Sarah Jenkins")
+                    .cardType("Visa")
+                    .cardNumberEncrypted(encryptionUtil.encrypt("4242424242424242"))
+                    .cardLastFour("4242")
+                    .expirationDate("11/27")
+                    .billingAddress(address)
+                    .addedAt(LocalDateTime.now())
+                    .build();
+
+            User favUser = User.builder()
+                    .firstName("Sarah")
+                    .lastName("Jenkins")
+                    .email("favuser@gmail.com")
+                    .passwordHash(passwordHashingUtil.hashPassword("UserPass!20"))
+                    .userType(UserType.CUSTOMER)
+                    .status(UserStatus.ACTIVE)
+                    .emailVerified(true)
+                    .promotionSubscription(true)
+                    .address(address)
+                    .paymentCards(new ArrayList<>(List.of(card)))
+                    .favoriteMovieIds(favMovieIds) // Has favorite movies stored!
+                    .createdAt(LocalDateTime.now())
+                    .updatedAt(LocalDateTime.now())
+                    .build();
+            userRepository.save(favUser);
+            log.info("Seeded User with favorites: favuser@gmail.com / UserPass!20 (favorites: {})", favMovieIds.size());
+        }
+
+        // 3. Verified user with 3 payment cards (TC7 test data)
+        if (userRepository.findByEmail("cardsuser@gmail.com").isEmpty()) {
+            Address address = Address.builder()
+                    .street("456 Elm Ave")
+                    .city("Athens")
+                    .state("GA")
+                    .zipCode("30602")
+                    .build();
+
+            PaymentCard card1 = PaymentCard.builder()
+                    .id(UUID.randomUUID().toString())
+                    .cardholderName("Alex Rivera")
+                    .cardType("Visa")
+                    .cardNumberEncrypted(encryptionUtil.encrypt("4111111111111111"))
+                    .cardLastFour("1111")
+                    .expirationDate("12/28")
+                    .billingAddress(address)
+                    .addedAt(LocalDateTime.now())
+                    .build();
+
+            PaymentCard card2 = PaymentCard.builder()
+                    .id(UUID.randomUUID().toString())
+                    .cardholderName("Alex Rivera")
+                    .cardType("MasterCard")
+                    .cardNumberEncrypted(encryptionUtil.encrypt("5500000000002222"))
+                    .cardLastFour("2222")
+                    .expirationDate("08/27")
+                    .billingAddress(address)
+                    .addedAt(LocalDateTime.now())
+                    .build();
+
+            PaymentCard card3 = PaymentCard.builder()
+                    .id(UUID.randomUUID().toString())
+                    .cardholderName("Alex Rivera")
+                    .cardType("Amex")
+                    .cardNumberEncrypted(encryptionUtil.encrypt("378282246313333"))
+                    .cardLastFour("3333")
+                    .expirationDate("05/29")
+                    .billingAddress(address)
+                    .addedAt(LocalDateTime.now())
+                    .build();
+
+            User cardsUser = User.builder()
+                    .firstName("Alex")
+                    .lastName("Rivera")
+                    .email("cardsuser@gmail.com")
+                    .passwordHash(passwordHashingUtil.hashPassword("UserPass!20"))
+                    .userType(UserType.CUSTOMER)
+                    .status(UserStatus.ACTIVE)
+                    .emailVerified(true)
+                    .promotionSubscription(true)
+                    .address(address)
+                    .paymentCards(new ArrayList<>(List.of(card1, card2, card3))) // Exactly 3 payment cards!
+                    .favoriteMovieIds(new ArrayList<>())
+                    .createdAt(LocalDateTime.now())
+                    .updatedAt(LocalDateTime.now())
+                    .build();
+            userRepository.save(cardsUser);
+            log.info("Seeded User with 3 payment cards: cardsuser@gmail.com / UserPass!20");
+        }
     }
 
     /**
