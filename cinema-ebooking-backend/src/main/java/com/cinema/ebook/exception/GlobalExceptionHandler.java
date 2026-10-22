@@ -1,113 +1,114 @@
 package com.cinema.ebook.exception;
 
-import com.cinema.ebook.dto.response.ApiResponse;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.validation.FieldError;
+import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.context.request.WebRequest;
+
+import java.time.LocalDateTime;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * GlobalExceptionHandler
- *
- * Centralized exception handling for the entire application.
- * Catches exceptions thrown by controllers and services, and returns appropriate HTTP responses.
- * Ensures consistent error response format across all endpoints.
- *
- * @author Team 3 Backend
- * @version 1.0
+ * Centralized exception handling for all controllers
  */
 @RestControllerAdvice
-@Slf4j
 public class GlobalExceptionHandler {
 
-    /**
-     * Handle InvalidFilterException
-     * Thrown when an invalid filter value is provided to an endpoint
-     *
-     * @param ex the exception
-     * @return ResponseEntity with 400 Bad Request and error details
-     */
-    @ExceptionHandler(InvalidFilterException.class)
-    public ResponseEntity<ApiResponse<Object>> handleInvalidFilterException(InvalidFilterException ex) {
-        log.warn("Invalid filter exception: {}", ex.getMessage());
-
-        ApiResponse<Object> response = ApiResponse.error(
-                ex.getMessage(),
-                "INVALID_FILTER"
-        );
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+    @ExceptionHandler(UnverifiedAccountException.class)
+    public ResponseEntity<?> handleUnverifiedAccount(UnverifiedAccountException ex, WebRequest request) {
+        Map<String, Object> body = new HashMap<>();
+        body.put("success", false);
+        body.put("message", ex.getMessage());
+        body.put("error", "UNVERIFIED_ACCOUNT");
+        body.put("timestamp", LocalDateTime.now());
+        return new ResponseEntity<>(body, HttpStatus.FORBIDDEN);
     }
 
-    /**
-     * Handle ResourceNotFoundException
-     * Thrown when a requested resource is not found
-     *
-     * @param ex the exception
-     * @return ResponseEntity with 404 Not Found and error details
-     */
+    @ExceptionHandler(InvalidTokenException.class)
+    public ResponseEntity<?> handleInvalidToken(InvalidTokenException ex, WebRequest request) {
+        Map<String, Object> body = new HashMap<>();
+        body.put("success", false);
+        body.put("message", ex.getMessage());
+        body.put("error", "INVALID_TOKEN");
+        body.put("timestamp", LocalDateTime.now());
+        return new ResponseEntity<>(body, HttpStatus.UNAUTHORIZED);
+    }
+
+    @ExceptionHandler(MaxPaymentCardsException.class)
+    public ResponseEntity<?> handleMaxPaymentCards(MaxPaymentCardsException ex, WebRequest request) {
+        Map<String, Object> body = new HashMap<>();
+        body.put("success", false);
+        body.put("message", ex.getMessage());
+        body.put("error", "MAX_PAYMENT_CARDS_EXCEEDED");
+        body.put("timestamp", LocalDateTime.now());
+        return new ResponseEntity<>(body, HttpStatus.BAD_REQUEST);
+    }
+
+    @ExceptionHandler(DuplicateEmailException.class)
+    public ResponseEntity<?> handleDuplicateEmail(DuplicateEmailException ex, WebRequest request) {
+        Map<String, Object> body = new HashMap<>();
+        body.put("success", false);
+        body.put("message", ex.getMessage());
+        body.put("error", "DUPLICATE_EMAIL");
+        body.put("timestamp", LocalDateTime.now());
+        return new ResponseEntity<>(body, HttpStatus.CONFLICT);
+    }
+
+    @ExceptionHandler(BadCredentialsException.class)
+    public ResponseEntity<?> handleBadCredentials(BadCredentialsException ex, WebRequest request) {
+        Map<String, Object> body = new HashMap<>();
+        body.put("success", false);
+        body.put("message", "Invalid email or password");
+        body.put("error", "INVALID_CREDENTIALS");
+        body.put("timestamp", LocalDateTime.now());
+        return new ResponseEntity<>(body, HttpStatus.UNAUTHORIZED);
+    }
+
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    public ResponseEntity<?> handleValidationExceptions(MethodArgumentNotValidException ex, WebRequest request) {
+        Map<String, String> errors = new HashMap<>();
+        ex.getBindingResult().getAllErrors().forEach((error) -> {
+            String fieldName = ((FieldError) error).getField();
+            String errorMessage = error.getDefaultMessage();
+            errors.put(fieldName, errorMessage);
+        });
+
+        Map<String, Object> body = new HashMap<>();
+        body.put("success", false);
+        body.put("message", "Validation failed");
+        body.put("error", "VALIDATION_ERROR");
+        body.put("errors", errors);
+        body.put("timestamp", LocalDateTime.now());
+        return new ResponseEntity<>(body, HttpStatus.BAD_REQUEST);
+    }
+
     @ExceptionHandler(ResourceNotFoundException.class)
-    public ResponseEntity<ApiResponse<Object>> handleResourceNotFoundException(ResourceNotFoundException ex) {
-        log.warn("Resource not found: {}", ex.getMessage());
-
-        ApiResponse<Object> response = ApiResponse.error(
-                ex.getMessage(),
-                "RESOURCE_NOT_FOUND"
-        );
-        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
+    public ResponseEntity<?> handleResourceNotFound(ResourceNotFoundException ex, WebRequest request) {
+        Map<String, Object> body = new HashMap<>();
+        body.put("success", false);
+        body.put("message", ex.getMessage());
+        body.put("error", "RESOURCE_NOT_FOUND");
+        body.put("timestamp", LocalDateTime.now());
+        return new ResponseEntity<>(body, HttpStatus.NOT_FOUND);
     }
 
-    /**
-     * Handle IllegalArgumentException
-     * Thrown for invalid arguments to methods
-     *
-     * @param ex the exception
-     * @return ResponseEntity with 400 Bad Request and error details
-     */
-    @ExceptionHandler(IllegalArgumentException.class)
-    public ResponseEntity<ApiResponse<Object>> handleIllegalArgumentException(IllegalArgumentException ex) {
-        log.warn("Illegal argument: {}", ex.getMessage());
-
-        ApiResponse<Object> response = ApiResponse.error(
-                "Invalid argument: " + ex.getMessage(),
-                "INVALID_ARGUMENT"
-        );
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
-    }
-
-    /**
-     * Handle NullPointerException
-     * Thrown when unexpected null values are encountered
-     *
-     * @param ex the exception
-     * @return ResponseEntity with 400 Bad Request and generic error
-     */
-    @ExceptionHandler(NullPointerException.class)
-    public ResponseEntity<ApiResponse<Object>> handleNullPointerException(NullPointerException ex) {
-        log.error("Null pointer exception", ex);
-
-        ApiResponse<Object> response = ApiResponse.error(
-                "Invalid request data",
-                "NULL_POINTER"
-        );
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
-    }
-
-    /**
-     * Handle all other exceptions (catch-all)
-     * Logs the error and returns generic server error response
-     *
-     * @param ex the exception
-     * @return ResponseEntity with 500 Internal Server Error and error details
-     */
     @ExceptionHandler(Exception.class)
-    public ResponseEntity<ApiResponse<Object>> handleGeneralException(Exception ex) {
-        log.error("Unexpected exception", ex);
+    public ResponseEntity<?> handleGlobalException(Exception ex, WebRequest request) {
+        Map<String, Object> body = new HashMap<>();
+        body.put("success", false);
+        body.put("message", "An unexpected error occurred");
+        body.put("error", "INTERNAL_SERVER_ERROR");
+        body.put("timestamp", LocalDateTime.now());
 
-        ApiResponse<Object> response = ApiResponse.error(
-                "An unexpected error occurred. Please try again later.",
-                "INTERNAL_SERVER_ERROR"
-        );
-        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
+        // Log the exception
+        ex.printStackTrace();
+
+        return new ResponseEntity<>(body, HttpStatus.INTERNAL_SERVER_ERROR);
     }
 }
